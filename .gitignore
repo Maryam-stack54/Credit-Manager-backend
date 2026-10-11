@@ -1,0 +1,9 @@
+# dependencies
+node_modules/
+
+# secrets: set these in Render's Environment settings instead
+.env
+.env.*
+
+# logs
+npm-debug.log*
