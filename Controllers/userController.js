@@ -2,10 +2,22 @@ const userModel = require("../Models/userModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+// Checks a typed password against the stored hash. Phone keyboards
+// sometimes add a space at the end, so a trimmed version is also accepted.
+const passwordMatches = async (typed, hash) => {
+  if (typeof typed !== "string") return false;
+  if (await bcrypt.compare(typed, hash)) return true;
+
+  const trimmed = typed.trim();
+  return trimmed !== typed && (await bcrypt.compare(trimmed, hash));
+};
+
 // Creates a new shop owner account
 const registerUser = async (req, res) => {
   try {
-    const { name, password } = req.body;
+    const { name } = req.body;
+    // Spaces at either end of a password are never saved
+    const password = req.body.password?.trim();
     // Usernames are case-insensitive, so always compare them in lowercase
     const username = req.body.username?.trim().toLowerCase();
 
@@ -89,7 +101,7 @@ const loginUser = async (req, res) => {
     }
 
     // Compare the typed password with the stored hash
-    const isPasswordMatch = await bcrypt.compare(password, user.password);
+    const isPasswordMatch = await passwordMatches(password, user.password);
 
     if (!isPasswordMatch) {
       return res.status(401).json({
@@ -199,7 +211,9 @@ const updateProfile = async (req, res) => {
 // Changes the password after confirming the current one
 const changePassword = async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword } = req.body;
+    // Spaces at either end of the new password are never saved
+    const newPassword = req.body.newPassword?.trim();
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
@@ -222,7 +236,7 @@ const changePassword = async (req, res) => {
     }
 
     // The current password must be correct before it can be changed
-    const isPasswordMatch = await bcrypt.compare(currentPassword, user.password);
+    const isPasswordMatch = await passwordMatches(currentPassword, user.password);
 
     if (!isPasswordMatch) {
       return res.status(400).json({
