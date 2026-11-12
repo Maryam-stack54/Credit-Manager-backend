@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-// Shape of a shop owner's account in the database
+// Shape of any account in the database: shop owner, staff member or admin
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -38,6 +38,29 @@ const userSchema = new mongoose.Schema(
     businessAddress: {
       type: String,
       trim: true,
+    },
+
+    // What this person can do: "owner" runs a shop, "staff" works for one
+    // owner, and "admin" manages the whole system. Anyone who registers
+    // through the app is always an owner.
+    role: {
+      type: String,
+      enum: ["owner", "staff", "admin"],
+      default: "owner",
+      index: true,
+    },
+
+    // For staff only: the shop owner they work for
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "userModel",
+      index: true,
+    },
+
+    // A turned-off account cannot log in or use the app
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {

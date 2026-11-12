@@ -59,10 +59,13 @@ const registerUser = async (req, res) => {
     // Hash the password before saving so the real one is never stored
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Anyone who registers here is always a shop owner. A role sent in the
+    // request is ignored, so nobody can sign themselves up as staff or admin.
     const user = await userModel.create({
       name,
       username,
       password: hashedPassword,
+      role: "owner",
     });
     return res.status(201).json({
     message: "User registered successfully",
@@ -70,6 +73,7 @@ const registerUser = async (req, res) => {
       id: user._id,
       name: user.name,
       username: user.username,
+      role: user.role,
    },
  });
   } catch (error) {
@@ -109,6 +113,21 @@ const loginUser = async (req, res) => {
       });
     }
 
+    // A turned-off account cannot log in. Staff are also blocked when the
+    // owner they work for has been turned off.
+    let ownerIsActive = true;
+
+    if (user.role === "staff") {
+      const owner = await userModel.findById(user.owner).select("isActive");
+      ownerIsActive = Boolean(owner) && owner.isActive !== false;
+    }
+
+    if (user.isActive === false || !ownerIsActive) {
+      return res.status(403).json({
+        message: "Account disabled",
+      });
+    }
+
     // Issue a token the app sends with every request; it expires after 7 days
     const token = jwt.sign(
       { userId: user._id },
@@ -123,6 +142,7 @@ const loginUser = async (req, res) => {
         id: user._id,
         name: user.name,
         username: user.username,
+        role: user.role || "owner",
       },
     });
   } catch (error) {
@@ -133,16 +153,23 @@ const loginUser = async (req, res) => {
 };
 
 
-// The profile fields that are safe to send back to the app (no password)
-const formatProfile = (user) => ({
-  id: user._id,
-  name: user.name,
-  username: user.username,
-  businessName: user.businessName || "",
-  businessPhone: user.businessPhone || "",
-  businessAddress: user.businessAddress || "",
-  createdAt: user.createdAt,
-});
+// The profile fields that are safe to send back to the app (no password).
+// A staff member has no business details of their own, so they are shown
+// their employer's, which the app uses in reminders and messages.
+const formatProfile = (user, shopOwner) => {
+  const business = shopOwner || user;
+
+  return {
+    id: user._id,
+    name: user.name,
+    username: user.username,
+    role: user.role || "owner",
+    businessName: business.businessName || "",
+    businessPhone: business.businessPhone || "",
+    businessAddress: business.businessAddress || "",
+    createdAt: user.createdAt,
+  };
+};
 
 
 // Returns the logged-in user's profile
@@ -156,8 +183,11 @@ const getProfile = async (req, res) => {
       });
     }
 
+    const shopOwner =
+      user.role === "staff" ? await userModel.findById(user.owner) : null;
+
     return res.status(200).json({
-      user: formatProfile(user),
+      user: formatProfile(user, shopOwner),
     });
   } catch (error) {
     res.status(500).json({
@@ -175,6 +205,18 @@ const updateProfile = async (req, res) => {
     if (name !== undefined && name.trim().length < 2) {
       return res.status(400).json({
         message: "Name must be at least 2 characters",
+      });
+    }
+
+    // The business details belong to the shop owner, so only they can edit them
+    if (
+      req.user.role !== "owner" &&
+      (businessName !== undefined ||
+        businessPhone !== undefined ||
+        businessAddress !== undefined)
+    ) {
+      return res.status(403).json({
+        message: "Only the shop owner can change the business details",
       });
     }
 
@@ -196,9 +238,12 @@ const updateProfile = async (req, res) => {
       });
     }
 
+    const shopOwner =
+      user.role === "staff" ? await userModel.findById(user.owner) : null;
+
     return res.status(200).json({
       message: "Profile updated successfully",
-      user: formatProfile(user),
+      user: formatProfile(user, shopOwner),
     });
   } catch (error) {
     res.status(500).json({

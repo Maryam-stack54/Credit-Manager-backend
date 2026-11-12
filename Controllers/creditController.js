@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 const creditModel = require("../Models/creditModel");
 const customerModel = require("../Models/customerModel");
 
+// Fills in the name of whoever recorded each credit and payment
+const whoRecorded = [
+  { path: "createdBy", select: "name role" },
+  { path: "payments.recordedBy", select: "name role" },
+];
+
 // Records goods a customer has taken on credit
 const createCredit = async (req, res) => {
   try {
@@ -23,7 +29,7 @@ const createCredit = async (req, res) => {
     // Make sure the customer belongs to the logged-in user
     const customerExists = await customerModel.findOne({
       _id: customer,
-      user: req.user.userId,
+      user: req.user.shopId,
     });
 
     if (!customerExists) {
@@ -61,13 +67,16 @@ const createCredit = async (req, res) => {
     // A new credit starts unpaid, so its balance equals its total
     const credit = await creditModel.create({
       customer,
-      user: req.user.userId,
+      user: req.user.shopId,
+      createdBy: req.user.userId,
       items: processedItems,
       totalAmount,
       balance: totalAmount,
       status: "Pending",
       dueDate,
     });
+
+    await credit.populate(whoRecorded);
 
     return res.status(201).json({
       message: "Credit created successfully",
@@ -86,12 +95,13 @@ const createCredit = async (req, res) => {
 const getCredits = async (req, res) => {
   try {
     const credits = await creditModel
-      .find({ user: req.user.userId })
+      .find({ user: req.user.shopId })
       .populate({
         path: "customer",
-        match: { user: req.user.userId },
-        select: "name phone address",
-      });
+        match: { user: req.user.shopId },
+        select: "name phone address code",
+      })
+      .populate(whoRecorded);
 
     // Leave out credits whose customer has been deleted
     const userCredits = credits.filter((credit) => credit.customer);
@@ -117,12 +127,13 @@ const getCredit = async (req, res) => {
   });
 }
     const credit = await creditModel
-      .findOne({ _id: req.params.id, user: req.user.userId })
+      .findOne({ _id: req.params.id, user: req.user.shopId })
       .populate({
         path: "customer",
-        match: { user: req.user.userId },
-        select: "name phone address",
-      });
+        match: { user: req.user.shopId },
+        select: "name phone address code",
+      })
+      .populate(whoRecorded);
 
     if (!credit || !credit.customer) {
       return res.status(404).json({
@@ -159,10 +170,10 @@ const addPayment = async (req, res) => {
   });
 }
     const credit = await creditModel
-      .findOne({ _id: req.params.id, user: req.user.userId })
+      .findOne({ _id: req.params.id, user: req.user.shopId })
       .populate({
         path: "customer",
-        match: { user: req.user.userId },
+        match: { user: req.user.shopId },
       });
 
     if (!credit || !credit.customer) {
@@ -182,6 +193,7 @@ const addPayment = async (req, res) => {
       amount,
       method,
       note,
+      recordedBy: req.user.userId,
     });
 
     // Add up every payment made so far
@@ -201,6 +213,7 @@ const addPayment = async (req, res) => {
     }
 
     await credit.save();
+    await credit.populate(whoRecorded);
 
     return res.status(200).json({
       message: "Payment added successfully",
@@ -240,10 +253,10 @@ const updateCredit = async (req, res) => {
   });
 }
     const credit = await creditModel
-      .findOne({ _id: req.params.id, user: req.user.userId })
+      .findOne({ _id: req.params.id, user: req.user.shopId })
       .populate({
         path: "customer",
-        match: { user: req.user.userId },
+        match: { user: req.user.shopId },
       });
 
     if (!credit || !credit.customer) {
@@ -303,6 +316,7 @@ const updateCredit = async (req, res) => {
     }
 
     await credit.save();
+    await credit.populate(whoRecorded);
 
     return res.status(200).json({
       message: "Credit updated successfully",
@@ -328,10 +342,10 @@ const deleteCredit = async (req, res) => {
   });
 }
     const credit = await creditModel
-      .findOne({ _id: req.params.id, user: req.user.userId })
+      .findOne({ _id: req.params.id, user: req.user.shopId })
       .populate({
         path: "customer",
-        match: { user: req.user.userId },
+        match: { user: req.user.shopId },
       });
 
     if (!credit || !credit.customer) {

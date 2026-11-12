@@ -18,6 +18,12 @@ const creditSchema = new mongoose.Schema(
       index: true,
     },
 
+    // The person (owner or staff) who recorded this credit
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "userModel",
+    },
+
     // Goods taken on credit, each with its own quantity, price and total
     items: [
       {
@@ -77,6 +83,12 @@ const creditSchema = new mongoose.Schema(
         date: {
           type: Date,
           default: Date.now,
+        },
+
+        // The person (owner or staff) who recorded this payment
+        recordedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "userModel",
         },
       },
     ],
