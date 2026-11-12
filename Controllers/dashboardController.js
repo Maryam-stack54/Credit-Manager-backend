@@ -111,6 +111,7 @@ const getDashboardAttention = (userCredits) => {
     .map((credit) => ({
       id: credit._id,
       customer: credit.customer.name,
+      customerCode: credit.customer.code,
       balance: credit.balance,
       dueDate: credit.dueDate,
       status: credit.status,
@@ -134,6 +135,7 @@ const getDashboardAttention = (userCredits) => {
     .map((credit) => ({
       id: credit._id,
       customer: credit.customer.name,
+      customerCode: credit.customer.code,
       balance: credit.balance,
       dueDate: credit.dueDate,
       status: credit.status,
@@ -150,6 +152,7 @@ const getDashboardAttention = (userCredits) => {
         customerBalances[customerId] = {
           id: credit.customer._id,
           name: credit.customer.name,
+          code: credit.customer.code,
           balance: 0,
         };
       }
@@ -194,8 +197,10 @@ const getRecentActivity = (userCredits, customers) => {
     .map((credit) => ({
       id: credit._id,
       customer: credit.customer.name,
+      customerCode: credit.customer.code,
       amount: credit.totalAmount,
       date: credit.creditDate,
+      recordedBy: credit.createdBy?.name,
     }));
 
   // Recent payments
@@ -207,9 +212,11 @@ const getRecentActivity = (userCredits, customers) => {
         id: payment._id,
         creditId: credit._id,
         customer: credit.customer.name,
+        customerCode: credit.customer.code,
         amount: payment.amount,
         method: payment.method,
         date: payment.date,
+        recordedBy: payment.recordedBy?.name,
       });
     });
   });
@@ -230,6 +237,7 @@ const getRecentActivity = (userCredits, customers) => {
     .map((customer) => ({
       id: customer._id,
       name: customer.name,
+      code: customer.code,
       phone: customer.phone,
       createdAt: customer.createdAt,
     }));
@@ -247,7 +255,7 @@ const getRecentActivity = (userCredits, customers) => {
 
 const getDashboardOverview = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.shopId;
 
     const customers = await customerModel.find({
       user: userId,
@@ -258,8 +266,12 @@ const getDashboardOverview = async (req, res) => {
       .populate({
         path: "customer",
         match: { user: userId },
-        select: "name phone address",
-      });
+        select: "name phone address code",
+      })
+      .populate([
+        { path: "createdBy", select: "name" },
+        { path: "payments.recordedBy", select: "name" },
+      ]);
 
     // Leave out credits whose customer has been deleted
     const userCredits = credits.filter(
