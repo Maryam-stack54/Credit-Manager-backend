@@ -92,6 +92,10 @@ before(async () => {
   await new Promise((resolve) => {
     server = app.listen(0, resolve);
   });
+  // Some steps (like running the admin script) take longer than Node's
+  // default 5 seconds of keep-alive. Without this, the next request could
+  // reuse a connection the server had just closed and fail with ECONNRESET.
+  server.keepAliveTimeout = 60 * 1000;
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
