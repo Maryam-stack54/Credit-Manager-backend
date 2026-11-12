@@ -12,6 +12,8 @@ const userRoutes = require("./Routes/userRoute");
 const customerRoutes = require("./Routes/customerRoute");
 const creditRoutes = require("./Routes/creditRoute");
 const dashboardRoutes = require("./Routes/dashboardRoute");
+const staffRoutes = require("./Routes/staffRoute");
+const adminRoutes = require("./Routes/adminRoute");
 
 // Create the Express server
 const app = express();
@@ -36,6 +38,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/credits", creditRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Connect to MongoDB before handling requests
 connectDB();
