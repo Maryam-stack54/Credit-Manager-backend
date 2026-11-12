@@ -215,6 +215,16 @@ The mobile app was checked by a TypeScript check and by building the whole app (
 
 ---
 
+## 7b. Extra: reminders by SMS as well as WhatsApp
+
+Next to **Remind on WhatsApp**, the customer page and the credit page now have **Remind by SMS**. It opens the phone's messaging app on the customer's number with the same polite reminder already typed in. Nothing is sent until the shop owner presses send, and it goes from the owner's own SIM at their normal SMS rate.
+
+- Files: `services/whatsapp.js` (new `openSms`), `app/customers/[id].jsx`, `app/credits/[id].jsx`, and the Help text in `app/more/help.jsx`. No backend change.
+- For SMS only, the `₦` sign and bullet points are swapped for `N` and `-`. Those special characters would make a phone switch to a format that fits only 70 characters per message part instead of 160, so this keeps the cost down.
+- An incomplete phone number shows a warning instead of opening the messaging app.
+
+---
+
 ## 8. Things to know
 
 - **Staff cannot reset their own forgotten password** and an owner has no "reset password" button yet. This was not part of the brief. A staff member who knows their password can change it under More, then Change password.
