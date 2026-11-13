@@ -14,6 +14,7 @@ const creditRoutes = require("./Routes/creditRoute");
 const dashboardRoutes = require("./Routes/dashboardRoute");
 const staffRoutes = require("./Routes/staffRoute");
 const adminRoutes = require("./Routes/adminRoute");
+const { createCorsMiddleware } = require("./Middlewares/corsMiddleware");
 
 // Create the Express server
 const app = express();
@@ -24,6 +25,10 @@ const PORT = process.env.PORT || 5000;
 // Render puts the app behind a proxy. Trusting it lets the login limiter
 // see each user's real address instead of the proxy's.
 app.set("trust proxy", 1);
+
+// Lets the web version of the app call this backend from a browser
+// (see WEB_ORIGINS in Middlewares/corsMiddleware.js)
+app.use(createCorsMiddleware());
 
 // Read JSON request bodies sent by the mobile app
 app.use(express.json());
