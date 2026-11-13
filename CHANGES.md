@@ -225,6 +225,48 @@ Next to **Remind on WhatsApp**, the customer page and the credit page now have *
 
 ---
 
+## 7c. Extra jobs: "Send statement" and the Debtors report (backend side)
+
+Two more features were added to the mobile app: a **Send statement** button on each customer's page (opens WhatsApp or SMS with a ready-written statement) and a **Debtors report** screen (customers who owe money, with search, filters and a PDF download). Both are fully described in `CHANGES.md` in the mobile app project (`credit-manager`), including a screen-by-screen description, an example message, the requirements, the test table and ideas for future work.
+
+**What changed in the backend: no code.** Both features only *read* information the backend already provides, through the existing `GET /api/credits/getCredits` route, which returns each credit with its customer's name, phone number and code, and every payment with its date and amount. Nothing about how credits and payments are saved was changed, and no database field was added.
+
+What the backend already guarantees for these features:
+
+- **Own business only.** An owner or staff member only ever receives their own business's credits and customers. A second business never sees them.
+- **Admin cannot see them.** The admin is refused (HTTP 403) on the credit and customer routes.
+- **Reading changes nothing.**
+
+**Four tests were added** (43 in all, run with `npm test`) to prove this:
+
+- Owner and staff receive each credit with the customer's name, phone and code, and each payment with its date and amount.
+- One business never receives another business's customers or credits.
+- The admin cannot read the credits or the customers.
+- Reading the credits and customers leaves the stored data exactly as it was.
+
+**Example statement message** (what the owner's phone opens, ready to send):
+
+```
+Musa Stores
+Statement of account
+
+Customer: Amina Bello (CUS-0001)
+Date: 13 Nov 2026
+
+Balance owing: ₦3,000
+
+Latest activity:
+• 10 Nov 2026: Credit ₦1,000
+• 5 Nov 2026: Payment ₦3,000
+• 1 Nov 2026: Credit ₦5,000
+• 14 Oct 2026: Payment ₦2,500
+• 4 Oct 2026: Credit ₦2,500
+
+Thank you for your patronage.
+```
+
+---
+
 ## 8. Things to know
 
 - **Staff cannot reset their own forgotten password** and an owner has no "reset password" button yet. This was not part of the brief. A staff member who knows their password can change it under More, then Change password.
