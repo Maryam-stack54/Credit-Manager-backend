@@ -225,6 +225,82 @@ Next to **Remind on WhatsApp**, the customer page and the credit page now have *
 
 ---
 
+## 7c. Extra jobs: "Send statement" and the Debtors report (backend side)
+
+Two more features were added to the mobile app: a **Send statement** button on each customer's page (opens WhatsApp or SMS with a ready-written statement) and a **Debtors report** screen (customers who owe money, with search, filters and a PDF download). Both are fully described in `CHANGES.md` in the mobile app project (`credit-manager`), including a screen-by-screen description, an example message, the requirements, the test table and ideas for future work.
+
+**What changed in the backend: no code.** Both features only *read* information the backend already provides, through the existing `GET /api/credits/getCredits` route, which returns each credit with its customer's name, phone number and code, and every payment with its date and amount. Nothing about how credits and payments are saved was changed, and no database field was added.
+
+What the backend already guarantees for these features:
+
+- **Own business only.** An owner or staff member only ever receives their own business's credits and customers. A second business never sees them.
+- **Admin cannot see them.** The admin is refused (HTTP 403) on the credit and customer routes.
+- **Reading changes nothing.**
+
+**Four tests were added** (43 in all, run with `npm test`) to prove this:
+
+- Owner and staff receive each credit with the customer's name, phone and code, and each payment with its date and amount.
+- One business never receives another business's customers or credits.
+- The admin cannot read the credits or the customers.
+- Reading the credits and customers leaves the stored data exactly as it was.
+
+**Example statement message** (what the owner's phone opens, ready to send):
+
+```
+Musa Stores
+Statement of account
+
+Customer: Amina Bello (CUS-0001)
+Date: 13 Nov 2026
+
+Balance owing: ₦3,000
+
+Latest activity:
+• 10 Nov 2026: Credit ₦1,000
+• 5 Nov 2026: Payment ₦3,000
+• 1 Nov 2026: Credit ₦5,000
+• 14 Oct 2026: Payment ₦2,500
+• 4 Oct 2026: Credit ₦2,500
+
+Thank you for your patronage.
+```
+
+---
+
+## 7d. The web version: letting the website call the backend
+
+The app now also has a **web version** (a website made from the same code). It is described in `CHANGES.md` in the app project (`credit-manager`), under "The web version". The backend needed **one change** for it, which is on its own Git branch, **`web-cors`** (made from the latest backend work). `main` was not touched, and nothing has been deployed.
+
+**Why a change was needed.** A web browser refuses to let a website talk to a server unless the server says that website is allowed. This is a browser safety rule called CORS. The phone apps are not browsers, so they were never affected. Without this change the website would show "Could not connect to the server".
+
+**What was changed**
+
+| File | What it does |
+|---|---|
+| `Middlewares/corsMiddleware.js` | **New.** Says which websites may call the backend |
+| `index.js` | Uses it (two lines) |
+| `tests/cors.test.js` | **New.** 8 automated tests |
+| `scripts/localTestServer.js` | **New.** Runs the real backend on this computer with its own empty test database, for trying the app (web or phone) safely |
+
+**Who is allowed**
+
+- Any page running on this computer (`localhost`, on any port), so the web app works while it is being developed.
+- Every website address listed in a new setting called **`WEB_ORIGINS`** (addresses separated by commas, for example `https://my-credit-manager.netlify.app`).
+- No other website can call the backend from a browser.
+- The phone apps send no website address at all, so they work exactly as before. Cookies are never allowed, because the app sends its login in a header.
+
+**The one thing you must do when the website goes online:** on Render, open the backend service, then **Environment**, and add `WEB_ORIGINS` set to the website's address (no slash at the end). Save, and Render restarts the backend. Until you do, the browser blocks the website. Nothing else on Render needs to change, and no secret is involved.
+
+**Tested.** `npm test` now runs 51 tests, and they all pass. The 8 new ones check that: localhost on any port is allowed, other websites (including look-alike addresses such as `localhost.evil.com`) are not, only the addresses listed in `WEB_ORIGINS` are allowed (a trailing slash and spaces are tidied), the browser's permission check for PATCH requests with a login header is answered correctly (and refused for unlisted websites), phone requests with no website address are not changed, and cookies are never allowed. The whole website was also tested end to end in a real Chrome browser against this backend: 65 checks, all passing.
+
+**The test server.** `node scripts/localTestServer.js` starts the backend on `http://localhost:5055` against the database `credit_manager_web_test` on MongoDB running on your computer. It refuses any database that is not on your computer, and it does not read the `.env` file, so no secret is needed and real customers can never be touched. Create an admin for it with `MONGO_URI=mongodb://127.0.0.1:27017/credit_manager_web_test node scripts/createAdmin.js admin1 Admin@001` (in PowerShell: set `$env:MONGO_URI` first).
+
+**One limit to know about.** The backend allows 10 new sign-ups per hour from one computer. Running the browser test many times in an hour can use this up. Stop and restart the test server to reset it.
+
+**To put it live:** merge `web-cors` into `main` and push, so Render redeploys, then add `WEB_ORIGINS` as described above.
+
+---
+
 ## 8. Things to know
 
 - **Staff cannot reset their own forgotten password** and an owner has no "reset password" button yet. This was not part of the brief. A staff member who knows their password can change it under More, then Change password.

@@ -750,6 +750,85 @@ describe("Customer codes", () => {
   });
 });
 
+// "Send statement" and the Debtors report only read the credits the app
+// already loads. These tests check that those credits carry everything the
+// statement and the report need, and that each business sees only its own.
+describe("Data read by the statement and the debtors report", () => {
+  const ctx = {};
+
+  before(async () => {
+    const shop = await makeUser({ name: "Report Shop", username: "reportshop", role: "owner" });
+    await makeUser({ name: "Report Staff", username: "reportstaff", role: "staff", owner: shop._id });
+    await makeUser({ name: "Other Shop", username: "othershop", role: "owner" });
+
+    ctx.owner = (await login("reportshop", "secret1")).body.token;
+    ctx.staff = (await login("reportstaff", "secret1")).body.token;
+    ctx.other = (await login("othershop", "secret1")).body.token;
+    ctx.admin = (await login("sysadmin", "adminpass1")).body.token;
+
+    const mine = (await newCustomer(ctx.owner, "Report Customer", "08055550001")).body.customer;
+    const theirs = (await newCustomer(ctx.other, "Other Shop Customer", "08055550002")).body.customer;
+
+    const credit = await newCredit(ctx.staff, mine._id, 1000);
+    await api("POST", `/api/credits/addPayment/${credit.body.credit._id}`, ctx.staff, {
+      amount: 400,
+      method: "Cash",
+    });
+    await newCredit(ctx.other, theirs._id, 7777);
+
+    ctx.mine = mine;
+  });
+
+  it("staff and owner get each credit with the customer's name, phone and code, and every payment with its date and amount", async () => {
+    for (const token of [ctx.owner, ctx.staff]) {
+      const result = await api("GET", "/api/credits/getCredits", token);
+
+      assert.equal(result.status, 200);
+      assert.equal(result.body.credits.length, 1);
+
+      const credit = result.body.credits[0];
+      assert.equal(credit.customer.name, "Report Customer");
+      assert.equal(credit.customer.phone, "08055550001");
+      assert.equal(credit.customer.code, "CUS-0001");
+      assert.equal(credit.totalAmount, 2000);
+      assert.equal(credit.balance, 1600);
+      assert.ok(credit.creditDate);
+      assert.equal(credit.payments.length, 1);
+      assert.equal(credit.payments[0].amount, 400);
+      assert.ok(credit.payments[0].date);
+    }
+  });
+
+  it("one business never receives another business's customers or credits", async () => {
+    const result = await api("GET", "/api/credits/getCredits", ctx.owner);
+    const text = JSON.stringify(result.body);
+
+    for (const secret of ["Other Shop Customer", "08055550002", "7777", "15554"]) {
+      assert.ok(!text.includes(secret), `must not include ${secret}`);
+    }
+
+    const theirs = await api("GET", "/api/credits/getCredits", ctx.other);
+    assert.equal(theirs.body.credits.length, 1);
+    assert.equal(theirs.body.credits[0].customer.name, "Other Shop Customer");
+    assert.ok(!JSON.stringify(theirs.body).includes("Report Customer"));
+  });
+
+  it("the admin cannot read the credits or the customers", async () => {
+    assert.equal((await api("GET", "/api/credits/getCredits", ctx.admin)).status, 403);
+    assert.equal((await api("GET", "/api/customers/getCustomers", ctx.admin)).status, 403);
+  });
+
+  it("reading changes nothing: the credit and its payments are exactly as they were", async () => {
+    const before = JSON.stringify(await creditModel.find({}).sort({ _id: 1 }).lean());
+    await api("GET", "/api/credits/getCredits", ctx.owner);
+    await api("GET", "/api/credits/getCredits", ctx.staff);
+    await api("GET", "/api/customers/getCustomers", ctx.staff);
+    const after = JSON.stringify(await creditModel.find({}).sort({ _id: 1 }).lean());
+
+    assert.equal(after, before);
+  });
+});
+
 describe("One-time update for existing data", () => {
   const MIGRATE_URI = `${BASE_URI}/credit_manager_test_migrate`;
   const script = path.join(__dirname, "..", "scripts", "migrateRolesAndCodes.js");
